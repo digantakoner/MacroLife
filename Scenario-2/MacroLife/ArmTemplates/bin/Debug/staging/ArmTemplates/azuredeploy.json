@@ -1,0 +1,195 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "outputs": {},
+  "parameters": {
+    "VmStorageType": {
+      "type": "string",
+      "defaultValue": "Standard_LRS",
+      "allowedValues": [
+        "Standard_LRS",
+        "Standard_ZRS",
+        "Standard_GRS",
+        "Standard_RAGRS",
+        "Premium_LRS"
+      ]
+    },
+    "WindowsVMName": {
+      "type": "string",
+      "minLength": 1
+    },
+    "WindowsVMAdminUserName": {
+      "type": "string",
+      "minLength": 1
+    },
+    "WindowsVMAdminPassword": {
+      "type": "securestring"
+    
+    },
+    "WindowsVMVmSize": {
+
+    }
+
+    "WindowsVMWindowsOSVersion": {
+      "type": "string",
+      "defaultValue": "2016-R2-Datacenter",
+      "allowedValues": [
+        "2008-R2-SP1",
+        "2012-Datacenter",
+        "2012-R2-Datacenter",
+        "Windows-Server-Technical-Preview",
+        "2016-Nano-Server",
+        "2016-Datacenter-with-Containers",
+        "2016-Datacenter",
+        "2019-Datacenter",
+        "2019-Datacenter-Core",
+        "2019-Datacenter-Core-smalldisk",
+        "2019-Datacenter-Core-with-Containers",
+        "2019-Datacenter-Core-with-Containers-smalldisk",
+        "2019-Datacenter-smalldisk",
+        "2019-Datacenter-with-Containers",
+        "2019-Datacenter-with-Containers-smalldisk"
+      ]
+    }
+  },
+  "resources": [
+    {
+      "name": "[variables('VmStorageName')]",
+      "type": "Microsoft.Storage/storageAccounts",
+      "location": "[resourceGroup().location]",
+      "apiVersion": "2016-01-01",
+      "sku": {
+        "name": "[parameters('VmStorageType')]"
+      },
+      "dependsOn": [],
+      "tags": {
+        "displayName": "VmStorage"
+      },
+      "kind": "Storage"
+    },
+    {
+      "name": "VM-Net",
+      "type": "Microsoft.Network/virtualNetworks",
+      "location": "[resourceGroup().location]",
+      "apiVersion": "2016-03-30",
+      "dependsOn": [],
+      "tags": {
+        "displayName": "VM-Net"
+      },
+      "properties": {
+        "addressSpace": {
+          "addressPrefixes": [
+            "[variables('VM-NetPrefix')]"
+          ]
+        },
+        "subnets": [
+          {
+            "name": "[variables('VM-NetSubnet1Name')]",
+            "properties": {
+              "addressPrefix": "[variables('VM-NetSubnet1Prefix')]"
+            }
+          },
+          {
+            "name": "[variables('VM-NetSubnet2Name')]",
+            "properties": {
+              "addressPrefix": "[variables('VM-NetSubnet2Prefix')]"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "[variables('WindowsVMNicName')]",
+      "type": "Microsoft.Network/networkInterfaces",
+      "location": "[resourceGroup().location]",
+      "apiVersion": "2016-03-30",
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/virtualNetworks', 'VM-Net')]"
+      ],
+      "tags": {
+        "displayName": "WindowsVMNic"
+      },
+      "properties": {
+        "ipConfigurations": [
+          {
+            "name": "ipconfig1",
+            "properties": {
+              "privateIPAllocationMethod": "Dynamic",
+              "subnet": {
+                "id": "[variables('WindowsVMSubnetRef')]"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "apiVersion": "2015-06-15",
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts', variables('VmStorageName'))]",
+        "[resourceId('Microsoft.Network/networkInterfaces', variables('WindowsVMNicName'))]"
+      ],
+      "location": "[resourceGroup().location]",
+      "name": "[parameters('WindowsVMName')]",
+      "properties": {
+        "hardwareProfile": {
+          "vmSize": "[parameters('WindowsVMVmSize')]"
+        },
+        "osProfile": {
+          "computerName": "[parameters('WindowsVMName')]",
+          "adminUsername": "[parameters('WindowsVMAdminUsername')]",
+          "adminPassword": "[parameters('WindowsVMAdminPassword')]"
+        },
+        "storageProfile": {
+          "imageReference": {
+            "publisher": "[variables('WindowsVMImagePublisher')]",
+            "offer": "[variables('WindowsVMImageOffer')]",
+            "sku": "[parameters('WindowsVMWindowsOSVersion')]",
+            "version": "latest"
+          },
+          "osDisk": {
+            "name": "WindowsVMOSDisk",
+            "vhd": {
+              "uri": "[concat(reference(resourceId('Microsoft.Storage/storageAccounts', variables('VmStorageName')), '2016-01-01').primaryEndpoints.blob, variables('WindowsVMStorageAccountContainerName'), '/', variables('WindowsVMOSDiskName'), '.vhd')]"
+            },
+            "caching": "ReadWrite",
+            "createOption": "FromImage"
+          }
+        },
+        "networkProfile": {
+          "networkInterfaces": [
+            {
+              "id": "[resourceId('Microsoft.Network/networkInterfaces', variables('WindowsVMNicName'))]"
+            }
+          ]
+        }
+      },
+      "tags": {
+        "displayName": "WindowsVM"
+      },
+      "type": "Microsoft.Compute/virtualMachines"
+    }
+  ],
+  "variables": {
+    "VmStorageName": "[concat('VmStorage', uniqueString(resourceGroup().id))]",
+    "VM-NetPrefix": "10.0.0.0/16",
+    "VM-NetSubnet1Name": "Subnet-1",
+    "VM-NetSubnet1Prefix": "10.0.0.0/24",
+    "VM-NetSubnet2Name": "Subnet-2",
+    "VM-NetSubnet2Prefix": "10.0.1.0/24",
+    "WindowsVMImagePublisher": "MicrosoftWindowsServer",
+    "WindowsVMImageOffer": "WindowsServer",
+    "WindowsVMOSDiskName": "WindowsVMOSDisk",
+    "WindowsVMVnetID": "[resourceId('Microsoft.Network/virtualNetworks', 'VM-Net')]",
+    "WindowsVMSubnetRef": "[concat(variables('WindowsVMVnetID'), '/subnets/', variables('VM-NetSubnet1Name'))]",
+    "WindowsVMStorageAccountContainerName": "vhds",
+    "WindowsVMNicName": "[concat(parameters('WindowsVMName'), 'NetworkInterface')]"
+  },
+  "WindowsVMVmSize": {
+    "type": "string",
+    "defaultValue": "Standard_D2_v3",
+    "metadata": {
+      "description": "Size of the virtual machine."
+    }
+  }
+}
