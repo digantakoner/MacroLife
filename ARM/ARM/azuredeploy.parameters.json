@@ -1,0 +1,26 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "MacroLifeVMType": {
+      "value": "Standard_LRS"
+    },
+    "VM-testName": {
+      "value": "windowsvm"
+    },
+    "VM-testAdminUserName": {
+      "value": "user1"
+    },
+    "VM-testAdminPassword": {
+      "value": "Password@1234"
+    },
+    "VM-testWindowsOSVersion": {
+      "value": "2012-R2-Datacenter"
+    },
+    "VM-testVmSize": {
+      "defaultValue": "Standard_A1_v2",
+      "metadata": {
+        "description": "description"
+
+      },
+    }

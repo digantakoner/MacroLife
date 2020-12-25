@@ -1,0 +1,178 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "MacroLifeVMType": {
+      "type": "string",
+      "defaultValue": "Standard_LRS",
+      "allowedValues": [
+        "Standard_LRS",
+        "Standard_ZRS",
+        "Standard_GRS",
+        "Standard_RAGRS",
+        "Premium_LRS"
+      ]
+    },
+    "VM-testName": {
+      "type": "string",
+      "minLength": 1
+    },
+    "VM-testAdminUserName": {
+      "type": "string",
+      "minLength": 1
+    },
+    "VM-testAdminPassword": {
+      "type": "securestring"
+    },
+    "VM-testWindowsOSVersion": {
+      "allowedValues": [
+        "2008-R2-SP1",
+        "2012-Datacenter",
+        "2012-R2-Datacenter",
+        "Windows-Server-Technical-Preview"
+      ],
+      "defaultValue": "2012-R2-Datacenter",
+      "type": "string",
+      "VM-testVmSize": {
+        "defaultValue": "B, Dsv3, Dv3, Dasv4, Dav4, DSv2, Dv2, Av2, DC, DCv2, Dv4, Dsv4, Ddv4, Ddsv4",
+        "metadata": {
+          "description": "Size of the virtual machine."
+        }
+      }
+    }},
+  "variables": {
+    "MacroLifeVMName": "[concat('MacroLifeVM', uniqueString(resourceGroup().id))]",
+    "VMVnetPrefix": "172.16.0.0/16",
+    "VMVnetSubnet1Name": "Subnet-1",
+    "VMVnetSubnet1Prefix": "172.16.0.0/24",
+    "VMVnetSubnet2Name": "Subnet-2",
+    "VMVnetSubnet2Prefix": "172.16.1.0/24",
+    "VM-testImagePublisher": "MicrosoftWindowsServer",
+    "VM-testImageOffer": "WindowsServer",
+    "VM-testOSDiskName": "VM-testOSDisk",
+    "VM-testVnetID": "[resourceId('Microsoft.Network/virtualNetworks', 'VMVnet')]",
+    "VM-testSubnetRef": "[concat(variables('VM-testVnetID'), '/subnets/', variables('VMVnetSubnet1Name'))]",
+    "VM-testStorageAccountContainerName": "vhds",
+    "VM-testNicName": "[concat(parameters('VM-testName'), 'NetworkInterface')]"},
+  "resources": [
+    {
+      "name": "[variables('MacroLifeVMName')]",
+      "type": "Microsoft.Storage/storageAccounts",
+      "location": "[resourceGroup().location]",
+      "apiVersion": "2016-01-01",
+      "sku": {
+        "name": "[parameters('MacroLifeVMType')]"
+      },
+      "dependsOn": [],
+      "tags": {
+        "displayName": "MacroLifeVM"
+      },
+      "kind": "Storage"
+    },
+    {
+      "VM-testVmSize": "[concat('storage', parameters('VM-testVmSize')[copyIndex()])]"
+   }
+    {
+      "name": "VMVnet",
+      "type": "Microsoft.Network/virtualNetworks",
+      "location": "[resourceGroup().location]",
+      "apiVersion": "2016-03-30",
+      "dependsOn": [ ],
+      "tags": {
+        "displayName": "VMVnet"
+      },
+      "properties": {
+        "addressSpace": {
+          "addressPrefixes": [
+            "[variables('VMVnetPrefix')]"
+          ]
+        },
+        "subnets": [
+          {
+            "name": "[variables('VMVnetSubnet1Name')]",
+            "properties": {
+              "addressPrefix": "[variables('VMVnetSubnet1Prefix')]"
+            }
+          },
+          {
+            "name": "[variables('VMVnetSubnet2Name')]",
+            "properties": {
+              "addressPrefix": "[variables('VMVnetSubnet2Prefix')]"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "[variables('VM-testNicName')]",
+      "type": "Microsoft.Network/networkInterfaces",
+      "location": "[resourceGroup().location]",
+      "apiVersion": "2016-03-30",
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/virtualNetworks', 'VMVnet')]"
+      ],
+      "tags": {
+        "displayName": "VM-testNic"
+      },
+      "properties": {
+        "ipConfigurations": [
+          {
+            "name": "ipconfig1",
+            "properties": {
+              "privateIPAllocationMethod": "Dynamic",
+              "subnet": {
+                "id": "[variables('VM-testSubnetRef')]"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "[parameters('VM-testName')]",
+      "type": "Microsoft.Compute/virtualMachines",
+      "location": "[resourceGroup().location]",
+      "apiVersion": "2015-06-15",
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts', variables('MacroLifeVMName'))]",
+        "[resourceId('Microsoft.Network/networkInterfaces', variables('VM-testNicName'))]"
+      ],
+      "tags": {
+        "displayName": "VM-test"
+      },
+      "properties": {
+        "hardwareProfile": {
+          "vmSize": "[parameters('VM-testVmSize')]"
+        },
+        "networkProfile": {
+          "networkInterfaces": [
+            {
+              "id": "[resourceId('Microsoft.Network/networkInterfaces', variables('VM-testNicName'))]"
+            }
+          ]
+        },
+        "osProfile": {
+          "computerName": "[parameters('VM-testName')]",
+          "adminUsername": "[parameters('VM-testAdminUsername')]",
+          "adminPassword": "[parameters('VM-testAdminPassword')]"
+        },
+        "storageProfile": {
+          "imageReference": {
+            "publisher": "[variables('VM-testImagePublisher')]",
+            "offer": "[variables('VM-testImageOffer')]",
+            "sku": "[parameters('VM-testWindowsOSVersion')]",
+            "version": "latest"
+          },
+          "osDisk": {
+            "name": "VM-testOSDisk",
+            "vhd": {
+              "uri": "[concat(reference(resourceId('Microsoft.Storage/storageAccounts', variables('MacroLifeVMName')), '2016-01-01').primaryEndpoints.blob, variables('VM-testStorageAccountContainerName'), '/', variables('VM-testOSDiskName'), '.vhd')]"
+            },
+            "caching": "ReadWrite",
+            "createOption": "FromImage"
+          }
+        }
+      }
+    }],
+  "outputs": {}
+}
